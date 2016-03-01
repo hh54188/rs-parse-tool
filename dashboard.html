@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <script type="text/javascript" src="http://upcdn.b0.upaiyun.com/libs/jquery/jquery-2.0.3.min.js"></script>
+</head>
+<body>
+<input type="file" id="files" name="files[]" multiple />
+<output id="list"></output>
+<script>
+    // https://gist.github.com/anonymous/3086540
+    // (function (global) {
+        function clean(css) {
+            return css
+            .replace(/\/\*[\W\w]*?\*\//g, "") // remove comments
+            .replace(/^\s+|\s+$/g, "") // remove trailing spaces
+            .replace(/\s*([:;{}])\s*/g, "$1") // remove trailing separator spaces
+            .replace(/\};+/g, "}") // remove unnecessary separators
+            .replace(/([^:;{}])}/g, "$1;}") // add trailing separators
+        }
+
+        function refine(css, isBlock) {
+            return /^@/.test(css) ? (css = css.split(" ")) && {
+                "identifier": css.shift().substr(1).toLowerCase(),
+                "parameters": css.join(" ")
+            } : (isBlock ? /:$/ : /:/).test(css) ? (css = css.split(":")) && {
+                "property": css.shift(),
+                "value": css.join(":")
+            } : css;
+        }
+
+        function parse(css, regExp, object) {
+            for (var m; (m = regExp.exec(css)) != null;) {
+                if (m[2] == "{") object.block.push(object = {
+                    "selector": refine(m[1], true),
+                    "block": [],
+                    "parent": object
+                });
+                else if (m[2] == "}") object = object.parent;
+                else if (m[2] == ";") object.block.push(refine(m[1]));
+            }
+        }
+
+        function parseCSS(css) {
+            return parse(clean(css), /([^{};]*)([;{}])/g, css = { block: [] }), css;
+        }
+    // })(this);
+
+    // Check for the various File API support.
+    if (window.File && window.FileReader && window.FileList && window.Blob) {
+      // Great success! All the File APIs are supported.
+    } else {
+      alert('The File APIs are not fully supported in this browser.');
+    }
+
+    function rulesForCssText(styleContent) {
+        var doc = document.implementation.createHTMLDocument(""),
+            styleElement = document.createElement("style");
+
+        styleElement.textContent = styleContent;
+        // the style will only be parsed once it is added to a document
+        doc.body.appendChild(styleElement);
+
+        return styleElement.sheet.cssRules;
+    }
+
+    function handleFileSelect(evt) {
+        var files = evt.target.files; // FileList object
+        for (var i = 0, file; file = files[i]; i++) {
+            console.log(file);
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var text = reader.result;
+                console.log("Raw text===>", text);
+
+                // Native:
+                var root = document.createElement('html');
+                root.innerHTML = text;
+                var walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL, null, false);
+                console.log(walker.currentNode.childNodes.length);
+
+
+
+
+
+                // jQuery:
+                var nodes = $.parseHTML(text);
+                // https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+                // Node.ELEMENT_NODE   1   An Element node such as <p> or <div>.
+                // Node.TEXT_NODE  3   The actual Text of Element or Attr.
+                // Node.PROCESSING_INSTRUCTION_NODE    7   A ProcessingInstruction of an XML document such as <?xml-stylesheet ... ?> declaration.
+                // Node.COMMENT_NODE   8   A Comment node.
+                // Node.DOCUMENT_NODE  9   A Document node.
+                // Node.DOCUMENT_TYPE_NODE 10  A DocumentType node e.g. <!DOCTYPE html> for HTML5 documents.
+                // Node.DOCUMENT_FRAGMENT_NODE 11  A DocumentFragment node.                
+                nodes.forEach(function (node, index) {
+                    if (node.tagName && node.tagName.toLowerCase() === 'style') {
+                        var cssRules = Array.prototype.slice.call(rulesForCssText(node.innerHTML));
+                        cssRules.forEach(function (rule, index) {
+                            // var selectorText = rule.selectorText;
+                            // var cssText = rule.style.cssText;
+                            console.log(parseCSS(rule.style.cssText));
+                        });
+                    }
+                    // console.log(index, 'node===>', node, 'tagName===>', node.tagName, 'nodeType===>', node.nodeType);
+                });
+
+
+            }
+            reader.readAsText(file, 'utf-8');
+            // reader.readAsText(file, 'gbk');
+        }
+    }
+    // 不可能通过路径自动读取文件
+    // http://stackoverflow.com/questions/18251432/read-a-local-file-using-javascript-html5-file-api-offline-website
+    // "all files that are being read by FileReader objects have first been selected by the user."
+    document.getElementById('files').addEventListener('change', handleFileSelect, false);
+</script>
+</body>
+</html>
